@@ -1,5 +1,166 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FTO Backtest Simulator v6</title><style>
-*{box-sizing:border-box}body{margin:0;background:#0f1117;color:#e7e9ee;font-family:system-ui,-apple-system,sans-serif}header{height:52px;border-bottom:1px solid #2a2e38;display:flex;align-items:center;padding:0 14px;gap:12px}header b{white-space:nowrap}.muted{color:#8f98aa;font-size:12px}.tfbar{display:flex;gap:5px;margin-left:auto}.tfbar button{width:auto;padding:7px 11px}.tfbar button.active{background:#2b6ff3;border-color:#2b6ff3}.tfbar button.unavailable{opacity:.45}main{display:grid;grid-template-columns:minmax(0,1fr) 350px;height:calc(100vh - 52px)}#chart{min-width:0;position:relative;background:#0f1117;overflow:hidden;cursor:grab}#canvas{width:100%;height:100%;display:block}.side{border-left:1px solid #2a2e38;padding:12px;overflow:auto}.section{border-bottom:1px solid #252a34;padding-bottom:10px;margin-bottom:10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}button,input,select{width:100%;padding:8px;margin:3px 0;background:#191d26;color:#eee;border:1px solid #343946;border-radius:7px}button{cursor:pointer}button:hover{filter:brightness(1.12)}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:#2b6ff3}.long{background:#17422c}.short{background:#4b2025}.status{padding:8px;margin:6px 0;background:#161a22;border:1px solid #303540;border-radius:7px;font-size:12px}.green{color:#5bd48a}.red{color:#ff7180}.small{font-size:11px;color:#8d95a6}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:5px}.metric{background:#161a22;border:1px solid #303540;border-radius:6px;padding:6px}.metric b{display:block;font-size:14px}.history-list{max-height:220px;overflow:auto;font-size:11px}.trade{display:grid;grid-template-columns:38px 1fr 60px 60px;gap:5px;padding:5px 0;border-bottom:1px solid #252a34}.notice{padding:7px;background:#2c2a1e;border:1px solid #5c5432;border-radius:6px;font-size:11px;margin:6px 0}h3{font-size:13px;margin:4px 0 7px}label{font-size:10px;color:#9da5b5}.chart-help{position:absolute;left:10px;top:8px;z-index:5;background:#151922cc;padding:5px 8px;border:1px solid #2d3340;border-radius:6px;font-size:10px;color:#aeb5c3;pointer-events:none}
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FTO Backtest Simulator v13</title><style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{
+  background:#0f1117;color:#e7e9ee;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  display:flex;flex-direction:column;
+}
+header{
+  flex:0 0 52px;height:52px;min-width:0;
+  border-bottom:1px solid #2a2e38;
+  display:flex;align-items:center;padding:0 14px;gap:12px;
+}
+header b{white-space:nowrap}
+.muted{color:#8f98aa;font-size:12px;white-space:nowrap}
+.tfbar{
+  display:flex;gap:5px;margin-left:auto;
+  min-width:0;overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:none;
+}
+.tfbar::-webkit-scrollbar{display:none}
+.tfbar button{width:auto;min-width:48px;padding:7px 11px;margin:0;flex:0 0 auto}
+.tfbar button.active{background:#2b6ff3;border-color:#2b6ff3}
+.tfbar button.unavailable{opacity:.45}
+
+main{
+  flex:1 1 auto;min-height:0;min-width:0;
+  display:grid;grid-template-columns:minmax(0,1fr) 350px;
+}
+#chart{
+  min-width:0;min-height:0;position:relative;
+  background:#0f1117;overflow:hidden;cursor:grab;
+  touch-action:none;
+}
+#canvas{width:100%;height:100%;display:block}
+.side{
+  min-width:0;min-height:0;
+  border-left:1px solid #2a2e38;
+  padding:12px;overflow:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.section{border-bottom:1px solid #252a34;padding-bottom:10px;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+button,input,select{
+  width:100%;min-height:38px;
+  padding:8px;margin:3px 0;
+  background:#191d26;color:#eee;
+  border:1px solid #343946;border-radius:7px;
+  font:inherit;
+}
+button{cursor:pointer;touch-action:manipulation}
+button:hover{filter:brightness(1.12)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.primary{background:#2b6ff3}.long{background:#17422c}.short{background:#4b2025}
+.status{padding:8px;margin:6px 0;background:#161a22;border:1px solid #303540;border-radius:7px;font-size:12px}
+.green{color:#5bd48a}.red{color:#ff7180}.small{font-size:11px;color:#8d95a6}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.metric{background:#161a22;border:1px solid #303540;border-radius:6px;padding:6px}
+.metric b{display:block;font-size:14px}
+.history-list{max-height:220px;overflow:auto;font-size:11px}
+.trade{display:grid;grid-template-columns:38px 1fr 60px 60px;gap:5px;padding:5px 0;border-bottom:1px solid #252a34}
+.notice{padding:7px;background:#2c2a1e;border:1px solid #5c5432;border-radius:6px;font-size:11px;margin:6px 0}
+h3{font-size:13px;margin:4px 0 7px}
+label{font-size:10px;color:#9da5b5}
+.chart-help{
+  position:absolute;left:10px;top:8px;z-index:5;
+  background:#151922cc;padding:5px 8px;
+  border:1px solid #2d3340;border-radius:6px;
+  font-size:10px;color:#aeb5c3;pointer-events:none;
+}
+
+/* ---------- Mobile portrait ---------- */
+@media (max-width:768px) and (orientation:portrait){
+  header{
+    flex:0 0 48px;height:48px;
+    padding:0 8px;gap:7px;
+  }
+  header b{font-size:13px}
+  header .muted{font-size:10px}
+  #dateLabel{display:none}
+  .tfbar{margin-left:auto;max-width:48vw}
+  .tfbar button{min-width:43px;padding:7px 8px;font-size:12px}
+
+  main{
+    grid-template-columns:1fr;
+    grid-template-rows:minmax(0,54fr) minmax(260px,46fr);
+  }
+  #chart{min-height:0}
+  .side{
+    border-left:0;border-top:1px solid #2a2e38;
+    padding:8px;
+    min-height:260px;
+  }
+
+  .section{padding-bottom:7px;margin-bottom:7px}
+  h3{font-size:12px;margin:2px 0 5px}
+  label{font-size:10px}
+  button,input,select{min-height:44px;padding:9px 8px;margin:3px 0}
+  .grid{gap:6px}
+  .status{padding:6px;margin:4px 0;font-size:11px}
+  .notice{padding:5px;margin:4px 0}
+  .metrics{gap:4px}
+  .metric{padding:5px}
+  .metric b{font-size:13px}
+  .history-list{max-height:110px}
+  .chart-help{
+    left:6px;top:6px;right:6px;
+    width:max-content;max-width:calc(100% - 12px);
+    font-size:9px;padding:4px 6px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+}
+
+/* ---------- Mobile landscape ---------- */
+@media (max-width:900px) and (orientation:landscape){
+  header{
+    flex:0 0 46px;height:46px;
+    padding:0 9px;gap:8px;
+  }
+  header b{font-size:13px}
+  header .muted{font-size:10px}
+  #dateLabel{display:none}
+  .tfbar{margin-left:auto}
+  .tfbar button{min-width:43px;padding:6px 8px;font-size:11px}
+
+  main{
+    grid-template-columns:minmax(0,1fr) minmax(270px,32vw);
+  }
+  .side{
+    padding:8px;
+    max-height:none;
+    border-left:1px solid #2a2e38;
+  }
+  .section{padding-bottom:6px;margin-bottom:6px}
+  h3{font-size:11px;margin:2px 0 4px}
+  button,input,select{min-height:38px;padding:6px 7px;margin:2px 0}
+  .status,.notice{padding:5px;margin:3px 0;font-size:10px}
+  .metric{padding:4px}
+  .metric b{font-size:12px}
+  .history-list{max-height:100px}
+  .chart-help{font-size:9px;max-width:70%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+
+/* ---------- Short-height phones ---------- */
+@media (max-width:768px) and (max-height:650px){
+  .side{font-size:11px}
+  .section{padding-bottom:5px;margin-bottom:5px}
+  button,input,select{min-height:40px}
+  .history-list{max-height:80px}
+  .chart-help{display:none}
+}
+
+/* iPhone safe-area support */
+@supports (padding: env(safe-area-inset-bottom)){
+  @media (max-width:768px){
+    header{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+    .side{
+      padding-left:max(8px,env(safe-area-inset-left));
+      padding-right:max(8px,env(safe-area-inset-right));
+      padding-bottom:max(8px,env(safe-area-inset-bottom));
+    }
+  }
+}
 </style></head><body><header><b>FTO Backtest Simulator</b><span id="tfLabel" class="muted">USDJPY · M5</span><span id="dateLabel" class="muted"></span><div class="tfbar" id="tfBar"></div></header><main><div id="chart"><canvas id="canvas"></canvas><div class="chart-help">TradingView操作：チャートをドラッグ=横移動 · ホイール=拡大縮小 · Entry / TP / SLをドラッグ=価格変更</div></div><aside class="side">
 <div class="section"><h3>セッション</h3><div class="grid"><button id="randomBtn" class="primary">🎲 ランダム開始</button><button id="resetBtn">リセット</button></div><label>表示履歴</label><select id="depth"><option value="240">240本</option><option value="500">500本</option><option value="1000">1000本</option><option value="2000">2000本</option></select><div id="notice" class="notice">2009年〜のM5ヒストリカルデータ</div><div class="status" id="status">読み込み中…</div></div>
 <div class="section"><h3>方向</h3><div class="grid"><button id="long" class="long">LONG</button><button id="short" class="short">SHORT</button></div><label>Entry</label><input id="entry" type="number" step=".001"><label>TP</label><input id="tp" type="number" step=".001"><label>SL</label><input id="sl" type="number" step=".001"><div class="grid"><button id="enter" class="primary">エントリー</button><button id="skip">見送り</button></div></div>
