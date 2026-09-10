@@ -1,6 +1,6 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FTO Backtest Simulator v13</title><style>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FTO Backtest Simulator v14</title><style>
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden}
+html,body{margin:0;width:100%;height:100%;height:100dvh;overflow:hidden}
 body{
   background:#0f1117;color:#e7e9ee;
   font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
@@ -24,7 +24,7 @@ header b{white-space:nowrap}
 .tfbar button.unavailable{opacity:.45}
 
 main{
-  flex:1 1 auto;min-height:0;min-width:0;
+  flex:1 1 auto;min-height:0;min-width:0;height:auto;
   display:grid;grid-template-columns:minmax(0,1fr) 350px;
 }
 #chart{
@@ -113,8 +113,9 @@ label{font-size:10px;color:#9da5b5}
 
 /* ---------- Mobile landscape ---------- */
 @media (max-width:900px) and (orientation:landscape){
+  html,body{height:100dvh;min-height:0}
   header{
-    flex:0 0 46px;height:46px;
+    flex:0 0 42px;height:42px;
     padding:0 9px;gap:8px;
   }
   header b{font-size:13px}
@@ -167,7 +168,8 @@ label{font-size:10px;color:#9da5b5}
 <div class="section"><h3>バー送り</h3><div class="grid"><button id="a1">▶ 1本</button><button id="a5">▶▶ 5本</button></div><div class="grid"><button id="a10">▶▶▶ 10本</button><button id="until">決済まで</button></div><div class="status" id="result">未決済</div><div class="small">Space=1本 / L=LONG / S=SHORT / E=エントリー</div></div>
 <div class="section"><h3>成績</h3><div class="metrics"><div class="metric">Trades<b id="trades">0</b></div><div class="metric">Win rate<b id="win">0.0%</b></div><div class="metric">PF<b id="pf">—</b></div><div class="metric">Net R<b id="net">0.00R</b></div><div class="metric">Max DD<b id="dd">0.00R</b></div><div class="metric">Best streak<b id="streak">0</b></div></div></div>
 <div class="section"><h3>トレード履歴</h3><div class="history-list" id="history"><div class="small">まだありません</div></div></div></aside></main><script>
-(()=>{'use strict';const $=id=>document.getElementById(id);const el={chart:$('chart'),cv:$('canvas'),tf:$('tfLabel'),date:$('dateLabel'),bar:$('tfBar'),random:$('randomBtn'),reset:$('resetBtn'),depth:$('depth'),notice:$('notice'),status:$('status'),long:$('long'),short:$('short'),entry:$('entry'),tp:$('tp'),sl:$('sl'),enter:$('enter'),skip:$('skip'),a1:$('a1'),a5:$('a5'),a10:$('a10'),until:$('until'),result:$('result'),trades:$('trades'),win:$('win'),pf:$('pf'),net:$('net'),dd:$('dd'),streak:$('streak'),history:$('history')};const ctx=el.cv.getContext('2d');const tfs=['M1','M5','M15','H1','H4'];const mins={M5:5,M15:15,H1:60,H4:240};let st={tf:'M5',current:0,bars:[],side:null,trade:null,loading:false};let viewStart=0,viewCount=240,lastRange=null,drag=null;const stat={ts:[],eq:0,peak:0,maxdd:0};
+(()=>{'use strict';const $=id=>document.getElementById(id);const el={chart:$('chart'),cv:$('canvas'),tf:$('tfLabel'),date:$('dateLabel'),bar:$('tfBar'),random:$('randomBtn'),reset:$('resetBtn'),depth:$('depth'),notice:$('notice'),status:$('status'),long:$('long'),short:$('short'),entry:$('entry'),tp:$('tp'),sl:$('sl'),enter:$('enter'),skip:$('skip'),a1:$('a1'),a5:$('a5'),a10:$('a10'),until:$('until'),result:$('result'),trades:$('trades'),win:$('win'),pf:$('pf'),net:$('net'),dd:$('dd'),streak:$('streak'),history:$('history')};const ctx=el.cv.getContext('2d');const tfs=['M1','M5','M15','H1','H4'];const mins={M5:5,M15:15,H1:60,H4:240};let st={tf:'M5',current:0,bars:[],side:null,trade:null,loading:false};let viewStart=0,viewCount=240,lastRange=null,drag=null;
+let pointers=new Map(), pinch=null;const stat={ts:[],eq:0,peak:0,maxdd:0};
 function buildTF(){el.bar.innerHTML='';tfs.forEach(tf=>{const b=document.createElement('button');b.textContent=tf;b.id='tf_'+tf;b.className=tf==='M1'?'unavailable':'';b.onclick=()=>tf==='M1'?el.notice.textContent='M1はM1元データが必要です。現在のデータはM5です。':changeTF(tf);el.bar.appendChild(b)})}function active(){tfs.forEach(tf=>{const b=$('tf_'+tf);if(b)b.classList.toggle('active',tf===st.tf)})}function timeStr(b){return b.date+' '+b.time}function ts(b){return Date.parse(b.date.replaceAll('.','-')+'T'+b.time+':00Z')/1000}
 function resize(){const r=el.chart.getBoundingClientRect(),d=devicePixelRatio||1;el.cv.width=r.width*d;el.cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0);draw()}addEventListener('resize',resize);
 function priceRange(data){let hi=-Infinity,lo=Infinity;data.forEach(b=>{hi=Math.max(hi,b.high);lo=Math.min(lo,b.low)});[st.trade?.entry,st.trade?.tp,st.trade?.sl].forEach(v=>{if(v!=null){hi=Math.max(hi,v);lo=Math.min(lo,v)}});const p=(hi-lo)*.08||.1;return [hi+p,lo-p]}
@@ -181,6 +183,87 @@ function enter(){const e=+el.entry.value,t=+el.tp.value,l=+el.sl.value;if(!st.si
 function record(res,exit){const t=st.trade,risk=Math.abs(t.entry-t.sl),p=t.side==='LONG'?exit-t.entry:t.entry-exit,R=risk?p/risk:0;stat.ts.push({side:t.side,result:res,entry:t.entry,exit,R});stat.eq+=R;stat.peak=Math.max(stat.peak,stat.eq);stat.maxdd=Math.min(stat.maxdd,stat.eq-stat.peak);stats();history()}
 async function advance(n){if(st.loading||!st.bars.length)return;st.loading=true;[el.a1,el.a5,el.a10,el.until].forEach(x=>x.disabled=true);const q=new URLSearchParams({tf:st.tf,current:st.current,steps:n});if(st.trade)Object.entries(st.trade).forEach(([k,v])=>q.set(k,v));try{const x=await api('/api/advance?'+q);if(x.bars?.length){st.bars.push(...x.bars);st.current=x.new_current;viewStart=Math.max(0,st.bars.length-viewCount)}if(x.result&&st.trade){record(x.result,x.exit);el.result.innerHTML=x.result==='WIN'?`<span class="green">WIN</span> @ ${x.exit.toFixed(3)}`:`<span class="red">LOSS</span> @ ${x.exit.toFixed(3)}`;st.trade=null}draw()}catch(e){el.result.innerHTML='<span class="red">'+e.message+'</span>'}finally{st.loading=false;[el.a1,el.a5,el.a10,el.until].forEach(x=>x.disabled=false)}}async function until(){if(!st.trade)return alert('先にエントリーしてください');let i=0;while(st.trade&&i++<100)await advance(50)}
 function stats(){const t=stat.ts,w=t.filter(x=>x.result==='WIN'),l=t.filter(x=>x.result==='LOSS'),gw=w.reduce((a,x)=>a+x.R,0),gl=l.reduce((a,x)=>a+Math.abs(x.R),0);el.trades.textContent=t.length;el.win.textContent=(t.length?w.length/t.length*100:0).toFixed(1)+'%';el.pf.textContent=gl?(gw/gl).toFixed(2):'—';el.net.textContent=stat.eq.toFixed(2)+'R';el.dd.textContent=stat.maxdd.toFixed(2)+'R';let c=0,b=0;t.forEach(x=>{c=x.result==='WIN'?c+1:0;b=Math.max(b,c)});el.streak.textContent=b}function history(){el.history.innerHTML=stat.ts.slice().reverse().map((x,i)=>`<div class="trade"><span>#${stat.ts.length-i}</span><span>${x.side}<br><span class="small">${x.entry.toFixed(3)} → ${x.exit.toFixed(3)}</span></span><span class="${x.result==='WIN'?'green':'red'}">${x.result}</span><b>${x.R.toFixed(2)}R</b></div>`).join('')||'<div class="small">まだありません</div>'}
-function bind(){el.random.onclick=newSession;el.reset.onclick=newSession;el.depth.onchange=newSession;el.long.onclick=()=>setSide('LONG');el.short.onclick=()=>setSide('SHORT');el.enter.onclick=enter;el.skip.onclick=()=>st.trade?alert('決済してから見送りしてください'):(el.result.textContent='見送り',advance(1));el.a1.onclick=()=>advance(1);el.a5.onclick=()=>advance(5);el.a10.onclick=()=>advance(10);el.until.onclick=until;el.cv.addEventListener('pointerdown',e=>{const r=el.cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,k=nearLine(y);if(k){drag={type:'line',k,pid:e.pointerId};el.cv.setPointerCapture(e.pointerId);el.chart.style.cursor='ns-resize'}else{drag={type:'pan',x,start:viewStart,pid:e.pointerId};el.cv.setPointerCapture(e.pointerId);el.chart.style.cursor='grabbing'}});el.cv.addEventListener('pointermove',e=>{if(!drag)return;const r=el.cv.getBoundingClientRect(),x=e.clientX-r.left;if(drag.type==='line')setLine(drag.k,priceY(e.clientY-r.top));else{const px=lastRange.pw/viewCount;const shift=Math.round(-(x-drag.x)/px);viewStart=Math.max(0,Math.min(st.bars.length-viewCount,drag.start+shift));draw()}});['pointerup','pointercancel'].forEach(ev=>el.cv.addEventListener(ev,()=>{drag=null;el.chart.style.cursor='grab'}));el.cv.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY>0?1.2:.83,c=viewStart+viewCount/2;viewCount=Math.max(40,Math.min(st.bars.length,Math.round(viewCount*f)));viewStart=Math.max(0,Math.min(st.bars.length-viewCount,Math.round(c-viewCount/2)));draw()},{passive:false});document.addEventListener('keydown',e=>{if(['INPUT','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();advance(1)}if(e.key.toLowerCase()==='l')setSide('LONG');if(e.key.toLowerCase()==='s')setSide('SHORT');if(e.key.toLowerCase()==='e')enter()})}
+
+function pinchDistance(){
+  const a=[...pointers.values()];
+  if(a.length<2)return null;
+  const dx=a[0].x-a[1].x,dy=a[0].y-a[1].y;
+  return Math.hypot(dx,dy);
+}
+function pinchCenter(){
+  const a=[...pointers.values()];
+  if(a.length<2)return null;
+  return {x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2};
+}
+function applyPinch(){
+  if(!pinch||pointers.size<2||!lastRange)return;
+  const d=pinchDistance();
+  if(!d||d<5)return;
+  const scale=pinch.startDist/d;
+  const next=Math.max(40,Math.min(st.bars.length,Math.round(pinch.startCount*scale)));
+  const c=pinch.startCenterIndex;
+  viewCount=next;
+  viewStart=Math.max(0,Math.min(st.bars.length-viewCount,Math.round(c-viewCount/2)));
+  draw();
+}
+function bind(){el.random.onclick=newSession;el.reset.onclick=newSession;el.depth.onchange=newSession;el.long.onclick=()=>setSide('LONG');el.short.onclick=()=>setSide('SHORT');el.enter.onclick=enter;el.skip.onclick=()=>st.trade?alert('決済してから見送りしてください'):(el.result.textContent='見送り',advance(1));el.a1.onclick=()=>advance(1);el.a5.onclick=()=>advance(5);el.a10.onclick=()=>advance(10);el.until.onclick=until;el.cv.addEventListener('pointerdown',e=>{
+  const r=el.cv.getBoundingClientRect();
+  const x=e.clientX-r.left,y=e.clientY-r.top;
+  pointers.set(e.pointerId,{x,y});
+  try{el.cv.setPointerCapture(e.pointerId)}catch(_){}
+  if(pointers.size>=2){
+    drag=null;
+    const d=pinchDistance(),c=pinchCenter();
+    if(d&&c){
+      const px=lastRange.pw/viewCount;
+      pinch={
+        startDist:d,
+        startCount:viewCount,
+        startCenterIndex:viewStart+(c.x-lastRange.left)/px
+      };
+    }
+    el.chart.style.cursor='default';
+    return;
+  }
+  const k=nearLine(y);
+  if(k){
+    drag={type:'line',k,pid:e.pointerId};
+    el.chart.style.cursor='ns-resize';
+  }else{
+    drag={type:'pan',x,start:viewStart,pid:e.pointerId};
+    el.chart.style.cursor='grabbing';
+  }
+});
+el.cv.addEventListener('pointermove',e=>{
+  const r=el.cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  if(pointers.has(e.pointerId))pointers.set(e.pointerId,{x,y});
+  if(pointers.size>=2){
+    if(!pinch){
+      const d=pinchDistance(),c=pinchCenter();
+      if(d&&c){
+        const px=lastRange.pw/viewCount;
+        pinch={startDist:d,startCount:viewCount,startCenterIndex:viewStart+(c.x-lastRange.left)/px};
+      }
+    }
+    applyPinch();
+    return;
+  }
+  if(!drag)return;
+  if(drag.type==='line')setLine(drag.k,priceY(y));
+  else{
+    const px=lastRange.pw/viewCount;
+    const shift=Math.round(-(x-drag.x)/px);
+    viewStart=Math.max(0,Math.min(st.bars.length-viewCount,drag.start+shift));
+    draw();
+  }
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>el.cv.addEventListener(ev,e=>{
+  pointers.delete(e.pointerId);
+  if(pointers.size<2)pinch=null;
+  if(pointers.size===0){
+    drag=null;
+    el.chart.style.cursor='grab';
+  }
+}));el.cv.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY>0?1.2:.83,c=viewStart+viewCount/2;viewCount=Math.max(40,Math.min(st.bars.length,Math.round(viewCount*f)));viewStart=Math.max(0,Math.min(st.bars.length-viewCount,Math.round(c-viewCount/2)));draw()},{passive:false});document.addEventListener('keydown',e=>{if(['INPUT','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();advance(1)}if(e.key.toLowerCase()==='l')setSide('LONG');if(e.key.toLowerCase()==='s')setSide('SHORT');if(e.key.toLowerCase()==='e')enter()})}
 buildTF();bind();active();resize();newSession();
 })();</script></body></html>
