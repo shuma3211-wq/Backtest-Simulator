@@ -1,4 +1,4 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FTO Backtest Simulator v14</title><style>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FX Simulator</title><style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;height:100dvh;overflow:hidden}
 body{
@@ -62,12 +62,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .notice{padding:7px;background:#2c2a1e;border:1px solid #5c5432;border-radius:6px;font-size:11px;margin:6px 0}
 h3{font-size:13px;margin:4px 0 7px}
 label{font-size:10px;color:#9da5b5}
-.chart-help{
-  position:absolute;left:10px;top:8px;z-index:5;
-  background:#151922cc;padding:5px 8px;
-  border:1px solid #2d3340;border-radius:6px;
-  font-size:10px;color:#aeb5c3;pointer-events:none;
-}
+.chart-top{position:absolute;left:10px;right:10px;top:8px;z-index:5;display:flex;align-items:center;gap:10px;min-width:0;background:#151922cc;padding:6px 9px;border:1px solid #2d3340;border-radius:6px;font-size:10px;color:#aeb5c3;pointer-events:none}.chart-top b{color:#e7e9ee;white-space:nowrap}.chart-top .muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---------- Mobile portrait ---------- */
 @media (max-width:768px) and (orientation:portrait){
@@ -103,12 +98,7 @@ label{font-size:10px;color:#9da5b5}
   .metric{padding:5px}
   .metric b{font-size:13px}
   .history-list{max-height:110px}
-  .chart-help{
-    left:6px;top:6px;right:6px;
-    width:max-content;max-width:calc(100% - 12px);
-    font-size:9px;padding:4px 6px;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
+  .chart-top{left:6px;top:6px;right:6px;font-size:9px;padding:5px 7px;gap:7px}
 }
 
 /* ---------- Mobile landscape ---------- */
@@ -139,7 +129,7 @@ label{font-size:10px;color:#9da5b5}
   .metric{padding:4px}
   .metric b{font-size:12px}
   .history-list{max-height:100px}
-  .chart-help{font-size:9px;max-width:70%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chart-top{font-size:9px;max-width:100%}
 }
 
 /* ---------- Short-height phones ---------- */
@@ -148,7 +138,7 @@ label{font-size:10px;color:#9da5b5}
   .section{padding-bottom:5px;margin-bottom:5px}
   button,input,select{min-height:40px}
   .history-list{max-height:80px}
-  .chart-help{display:none}
+  .chart-top{font-size:8px;padding:4px 6px;gap:5px}
 }
 
 /* iPhone safe-area support */
@@ -162,13 +152,13 @@ label{font-size:10px;color:#9da5b5}
     }
   }
 }
-</style></head><body><header><b>FTO Backtest Simulator</b><span id="tfLabel" class="muted">USDJPY · M5</span><span id="dateLabel" class="muted"></span><div class="tfbar" id="tfBar"></div></header><main><div id="chart"><canvas id="canvas"></canvas><div class="chart-help">TradingView操作：チャートをドラッグ=横移動 · ホイール=拡大縮小 · Entry / TP / SLをドラッグ=価格変更</div></div><aside class="side">
-<div class="section"><h3>セッション</h3><div class="grid"><button id="randomBtn" class="primary">🎲 ランダム開始</button><button id="resetBtn">リセット</button></div><label>表示履歴</label><select id="depth"><option value="240">240本</option><option value="500">500本</option><option value="1000">1000本</option><option value="2000">2000本</option></select><div id="notice" class="notice">2009年〜のM5ヒストリカルデータ</div><div class="status" id="status">読み込み中…</div></div>
+</style></head><body><header><b>FX Simulator</b><div class="tfbar" id="tfBar"></div></header><main><div id="chart"><canvas id="canvas"></canvas><div class="chart-top"><b></b><span id="tfLabel" class="muted">USDJPY · M5</span><span id="dateLabel" class="muted"></span></div></div><aside class="side">
+<div class="section"><h3>セッション</h3><button id="randomBtn" class="primary">🎲 ランダム開始 / リセット</button><select id="depth" aria-label="表示履歴" style="display:none"><option value="240">240本</option><option value="500">500本</option><option value="1000">1000本</option><option value="2000">2000本</option></select><div id="notice" class="notice">2009年〜のM5ヒストリカルデータ</div><div class="status" id="status">読み込み中…</div></div>
 <div class="section"><h3>方向</h3><div class="grid"><button id="long" class="long">LONG</button><button id="short" class="short">SHORT</button></div><label>Entry</label><input id="entry" type="number" step=".001"><label>TP</label><input id="tp" type="number" step=".001"><label>SL</label><input id="sl" type="number" step=".001"><div class="grid"><button id="enter" class="primary">エントリー</button><button id="skip">見送り</button></div></div>
 <div class="section"><h3>バー送り</h3><div class="grid"><button id="a1">▶ 1本</button><button id="a5">▶▶ 5本</button></div><div class="grid"><button id="a10">▶▶▶ 10本</button><button id="until">決済まで</button></div><div class="status" id="result">未決済</div><div class="small">Space=1本 / L=LONG / S=SHORT / E=エントリー</div></div>
 <div class="section"><h3>成績</h3><div class="metrics"><div class="metric">Trades<b id="trades">0</b></div><div class="metric">Win rate<b id="win">0.0%</b></div><div class="metric">PF<b id="pf">—</b></div><div class="metric">Net R<b id="net">0.00R</b></div><div class="metric">Max DD<b id="dd">0.00R</b></div><div class="metric">Best streak<b id="streak">0</b></div></div></div>
 <div class="section"><h3>トレード履歴</h3><div class="grid"><button id="csvBtn">CSV出力</button><button id="clearBtn">履歴全削除</button></div><div class="history-list" id="history"><div class="small">まだありません</div></div></div></aside></main><script>
-(()=>{'use strict';const $=id=>document.getElementById(id);const el={chart:$('chart'),cv:$('canvas'),tf:$('tfLabel'),date:$('dateLabel'),bar:$('tfBar'),random:$('randomBtn'),reset:$('resetBtn'),depth:$('depth'),notice:$('notice'),status:$('status'),long:$('long'),short:$('short'),entry:$('entry'),tp:$('tp'),sl:$('sl'),enter:$('enter'),skip:$('skip'),a1:$('a1'),a5:$('a5'),a10:$('a10'),until:$('until'),result:$('result'),trades:$('trades'),win:$('win'),pf:$('pf'),net:$('net'),dd:$('dd'),streak:$('streak'),history:$('history'),csv:$('csvBtn'),clear:$('clearBtn')};const ctx=el.cv.getContext('2d');const tfs=['M1','M5','M15','H1','H4'];const mins={M5:5,M15:15,H1:60,H4:240};let st={tf:'M5',current:0,bars:[],side:null,trade:null,loading:false};let viewStart=0,viewCount=240,lastRange=null,drag=null;
+(()=>{'use strict';const $=id=>document.getElementById(id);const el={chart:$('chart'),cv:$('canvas'),tf:$('tfLabel'),date:$('dateLabel'),bar:$('tfBar'),random:$('randomBtn'),reset:$('randomBtn'),depth:$('depth'),notice:$('notice'),status:$('status'),long:$('long'),short:$('short'),entry:$('entry'),tp:$('tp'),sl:$('sl'),enter:$('enter'),skip:$('skip'),a1:$('a1'),a5:$('a5'),a10:$('a10'),until:$('until'),result:$('result'),trades:$('trades'),win:$('win'),pf:$('pf'),net:$('net'),dd:$('dd'),streak:$('streak'),history:$('history'),csv:$('csvBtn'),clear:$('clearBtn')};const ctx=el.cv.getContext('2d');const tfs=['M1','M5','M15','H1','H4'];const mins={M5:5,M15:15,H1:60,H4:240};let st={tf:'M5',current:0,bars:[],side:null,trade:null,loading:false};let viewStart=0,viewCount=240,lastRange=null,drag=null;
 let pointers=new Map(), pinch=null;const stat={ts:[],eq:0,peak:0,maxdd:0};const STORE='fto_backtest_trades_v1';
 function buildTF(){el.bar.innerHTML='';tfs.forEach(tf=>{const b=document.createElement('button');b.textContent=tf;b.id='tf_'+tf;b.className=tf==='M1'?'unavailable':'';b.onclick=()=>tf==='M1'?el.notice.textContent='M1はM1元データが必要です。現在のデータはM5です。':changeTF(tf);el.bar.appendChild(b)})}function active(){tfs.forEach(tf=>{const b=$('tf_'+tf);if(b)b.classList.toggle('active',tf===st.tf)})}function timeStr(b){return b.date+' '+b.time}function ts(b){return Date.parse(b.date.replaceAll('.','-')+'T'+b.time+':00Z')/1000}
 function resize(){const r=el.chart.getBoundingClientRect(),d=devicePixelRatio||1;el.cv.width=r.width*d;el.cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0);draw()}addEventListener('resize',resize);
@@ -177,7 +167,7 @@ function draw(){const w=el.chart.clientWidth,h=el.chart.clientHeight;ctx.clearRe
 function priceY(y){if(!lastRange)return 0;return lastRange.hi-(y-lastRange.top)/lastRange.ph*(lastRange.hi-lastRange.lo)}function nearLine(y){const p=priceY(y),tol=Math.max((lastRange.hi-lastRange.lo)*.015,.005);let n=null,d=Infinity;['entry','tp','sl'].forEach(k=>{const v=st.trade?.[k];if(v==null)return;const z=Math.abs(v-p);if(z<tol&&z<d){d=z;n=k}});return n}function setLine(k,p){if(!st.trade||!Number.isFinite(p))return;st.trade[k]=Number(p.toFixed(3));el[k].value=st.trade[k].toFixed(3);draw()}
 function setSide(s){st.side=s;el.long.style.opacity=s==='LONG'?'1':'.55';el.short.style.opacity=s==='SHORT'?'1':'.55';const e=Number(el.entry.value);if(!e)return;if(s==='LONG'){el.tp.value=(e+.300).toFixed(3);el.sl.value=(e-.150).toFixed(3)}else{el.tp.value=(e-.300).toFixed(3);el.sl.value=(e+.150).toFixed(3)}}
 async function api(u){const r=await fetch(u,{cache:'no-store'});const j=await r.json();if(!r.ok)throw Error(j.detail||'API error');return j}
-async function newSession(){if(st.loading)return;if(st.tf==='M1')return;st.loading=true;el.random.disabled=el.reset.disabled=true;el.status.textContent='ランダム地点を読み込み中…';try{const x=await api(`/api/session?tf=${st.tf}&depth=${el.depth.value}`);st.current=x.current_m5;st.bars=x.bars;st.side=null;st.trade=null;viewCount=Math.min(240,st.bars.length);viewStart=Math.max(0,st.bars.length-viewCount);const c=st.bars.at(-1).close;el.entry.value=c.toFixed(3);setSide('LONG');el.result.textContent='未決済';draw()}catch(e){el.status.textContent='読み込み失敗: '+e.message}finally{st.loading=false;el.random.disabled=el.reset.disabled=false}}
+async function newSession(){if(st.loading)return;if(st.tf==='M1')return;st.loading=true;el.random.disabled=true;el.status.textContent='ランダム地点を読み込み中…';try{const x=await api(`/api/session?tf=${st.tf}&depth=${el.depth.value}`);st.current=x.current_m5;st.bars=x.bars;st.side=null;st.trade=null;viewCount=Math.min(240,st.bars.length);viewStart=Math.max(0,st.bars.length-viewCount);const c=st.bars.at(-1).close;el.entry.value=c.toFixed(3);setSide('LONG');el.result.textContent='未決済';draw()}catch(e){el.status.textContent='読み込み失敗: '+e.message}finally{st.loading=false;el.random.disabled=el.reset.disabled=false}}
 async function changeTF(tf){st.tf=tf;el.tf.textContent='USDJPY · '+tf;active();st.loading=true;try{const x=await api(`/api/view?tf=${tf}&current=${st.current}&depth=${el.depth.value}`);st.bars=x.bars;viewCount=Math.min(240,st.bars.length);viewStart=Math.max(0,st.bars.length-viewCount);draw()}catch(e){el.status.textContent='時間軸変更失敗: '+e.message}finally{st.loading=false}}
 function enter(){const e=+el.entry.value,t=+el.tp.value,l=+el.sl.value;if(!st.side||![e,t,l].every(Number.isFinite))return alert('方向・価格を設定してください');if(st.side==='LONG'&&!(l<e&&e<t))return alert('LONGは SL < Entry < TP');if(st.side==='SHORT'&&!(t<e&&e<l))return alert('SHORTは TP < Entry < SL');const b=st.bars.at(-1);st.trade={side:st.side,entry:e,tp:t,sl:l,entryTime:b?timeStr(b):'',entryDate:b?.date||'',entryBar:b?{open:b.open,high:b.high,low:b.low,close:b.close}:null,entryTf:st.tf};el.result.textContent='OPEN '+st.side+' @ '+e.toFixed(3);draw()}
 function saveRecords(){try{localStorage.setItem(STORE,JSON.stringify(stat.ts))}catch(e){}}
