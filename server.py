@@ -10,7 +10,7 @@ ROOT=Path(__file__).resolve().parent
 USD_CSV=ROOT/'data'/'USDJPY_M5.csv'
 XAU_DIR=ROOT/'data'/'xau'
 DATA_URL=os.getenv('DATA_URL','').strip()
-XAU_M5_URL=os.getenv('XAU_M5_URL','').strip()
+XAU_DATA_URL=os.getenv('XAU_DATA_URL','').strip()
 app=FastAPI()
 
 
@@ -32,18 +32,25 @@ def ensure_usd():
 
 
 def ensure_xau():
-    path=XAU_DIR/'XAU_5m_data.csv'
-    if path.exists() and path.stat().st_size>1000: return
-    if not XAU_M5_URL: raise RuntimeError('XAU M5 data is not installed. Set XAU_M5_URL.')
+    needed=['XAU_1m_data.csv','XAU_5m_data.csv','XAU_15m_data.csv','XAU_30m_data.csv','XAU_1h_data.csv','XAU_4h_data.csv']
+    if all((XAU_DIR/f).exists() and (XAU_DIR/f).stat().st_size>1000 for f in needed):
+        return
+    if not XAU_DATA_URL:
+        raise RuntimeError('XAU data is not installed. Set XAU_DATA_URL to archive.zip.')
     XAU_DIR.mkdir(parents=True, exist_ok=True)
-    gz=XAU_DIR/'XAU_5m_data.csv.gz'
-    urllib.request.urlretrieve(XAU_M5_URL,gz)
-    with gzip.open(gz,'rb') as src, path.open('wb') as dst:
-        while True:
-            chunk=src.read(4*1024*1024)
-            if not chunk: break
-            dst.write(chunk)
-    try: gz.unlink()
+    tmp=Path(tempfile.gettempdir())/'xau_archive.zip'
+    urllib.request.urlretrieve(XAU_DATA_URL, tmp)
+    with zipfile.ZipFile(tmp) as z:
+        for name in needed:
+            if name not in z.namelist():
+                raise RuntimeError(f'Missing {name} in XAU archive')
+            target=XAU_DIR/name
+            with z.open(name) as src, target.open('wb') as dst:
+                while True:
+                    chunk=src.read(4*1024*1024)
+                    if not chunk: break
+                    dst.write(chunk)
+    try: tmp.unlink()
     except OSError: pass
 
 ensure_usd()
@@ -124,11 +131,21 @@ def make_row(p,i,fmt='xau'):
         dt=parse_dt_usd(d,t); o,h,l,c,v=p[2:7]
     return {'date':d,'time':t,'open':float(o),'high':float(h),'low':float(l),'close':float(c),'volume':float(v) if v else 0.0,'_i':i,'_ts':dt.timestamp()}
 
-sources={'USDJPY':{'M5':None},'XAUUSD':{'M5':Source(XAU_DIR/'XAU_5m_data.csv')}}
+sources={
+ 'USDJPY': {'M5':None},
+ 'XAUUSD': {
+   'M1':Source(XAU_DIR/'XAU_1m_data.csv'), 'M5':Source(XAU_DIR/'XAU_5m_data.csv'),
+   'M15':Source(XAU_DIR/'XAU_15m_data.csv'), 'M30':Source(XAU_DIR/'XAU_30m_data.csv'),
+   'H1':Source(XAU_DIR/'XAU_1h_data.csv'), 'H4':Source(XAU_DIR/'XAU_4h_data.csv')
+ }
+}
+
+# USDJPY source: existing M5 file has no header.
 usd=Source(USD_CSV,has_header=False,fmt='usd')
 sources['USDJPY']['M5']=usd
-TF={'M5':5,'M15':15,'H1':60,'H4':240}
-SYMBOL_TFS={'USDJPY':['M5','M15','H1','H4'],'XAUUSD':['M5','M15','H1','H4']}
+
+TF={'M1':1,'M5':5,'M15':15,'M30':30,'H1':60,'H4':240}
+SYMBOL_TFS={'USDJPY':['M5','M15','H1','H4'],'XAUUSD':['M1','M5','M15','M30','H1','H4']}
 
 
 def time_str(r): return r['date']+' '+r['time']
@@ -150,25 +167,19 @@ def aggregate_usd(current_epoch, tf, depth):
     return out[-depth:]
 
 
-def aggregate_xau(current_epoch,tf,depth):
-    mins=TF[tf]; span=mins//5; src=sources['XAUUSD']['M5']; idx=src.index_at_or_before(current_epoch)
-    rs=src.rows(max(0,idx-depth*span-span*3),idx+1); out=[]; cur=None; k0=None
-    for r in rs:
-        k=int(r['_ts']//60)//mins
-        if k!=k0:
-            if cur: out.append(cur)
-            cur={'date':r['date'],'time':r['time'],'open':r['open'],'high':r['high'],'low':r['low'],'close':r['close'],'volume':r['volume'],'_i':r['_i'],'_end_i':r['_i'],'_ts':r['_ts']}; k0=k
-        else:
-            cur['high']=max(cur['high'],r['high']); cur['low']=min(cur['low'],r['low']); cur['close']=r['close']; cur['volume']+=r['volume']; cur['_end_i']=r['_i']; cur['_ts']=r['_ts']
-    if cur: out.append(cur)
-    return out[-depth:]
+def native_view(symbol, tf, current_epoch, depth):
+    src=sources[symbol][tf]
+    idx=src.index_at_or_before(current_epoch)
+    return src.rows(max(0,idx-depth+1),idx+1)
+
 
 def view(symbol,tf,current_epoch,depth):
-    return aggregate_usd(current_epoch,tf,depth) if symbol=='USDJPY' else aggregate_xau(current_epoch,tf,depth)
+    if symbol=='USDJPY': return aggregate_usd(current_epoch,tf,depth)
+    return native_view(symbol,tf,current_epoch,depth)
 
 
 def session(symbol,tf,depth):
-    src=sources[symbol]['M5'] if symbol=='XAUUSD' else usd
+    src=sources[symbol][tf] if symbol=='XAUUSD' else usd
     # Leave at least ~2000 bars of replay runway.
     lo=min(src.n-2001,max(depth+100,1000)) if src.n>3000 else max(depth,100)
     hi=max(lo,src.n-2000)
@@ -179,7 +190,7 @@ def session(symbol,tf,depth):
 
 
 def current_index(symbol,tf,epoch):
-    src=sources[symbol]['M5'] if symbol=='XAUUSD' else usd
+    src=sources[symbol][tf] if symbol=='XAUUSD' else usd
     return src.index_at_or_before(epoch)
 
 @app.get('/')
@@ -187,7 +198,7 @@ def home(): return FileResponse(ROOT/'static/index.html')
 
 @app.get('/api/info')
 def info():
-    return {'symbols':SYMBOL_TFS,'source':'XAU M5 base -> M15/H1/H4 + USDJPY M5 base -> M15/H1/H4'}
+    return {'symbols':SYMBOL_TFS,'source':'XAU native M1/M5/M15/M30/H1/H4 + USDJPY M5 aggregate'}
 
 @app.get('/api/session')
 def api_session(symbol:str='USDJPY',tf:str='M5',depth:int=240):
@@ -208,15 +219,15 @@ def api_view(symbol:str='USDJPY',tf:str='M5',current:float=0,depth:int=240):
 def api_advance(symbol:str='USDJPY',tf:str='M5',current:float=0,steps:int=1,side:str='',entry:float=0,tp:float=0,sl:float=0):
     symbol=symbol.upper(); tf=tf.upper(); steps=max(1,min(int(steps),200))
     if symbol not in SYMBOL_TFS or tf not in SYMBOL_TFS[symbol]: raise HTTPException(400,'Unsupported symbol/timeframe')
-    src=usd if symbol=='USDJPY' else sources['XAUUSD']['M5']
-    idx=src.index_at_or_before(float(current)); span=TF[tf]//5; end=min(src.n-1,idx+steps*span)
-    rs=src.rows(idx+1,end+1); shown=[]; result=None; exit_price=None
+    src=sources[symbol][tf] if symbol=='XAUUSD' else usd
+    idx=current_index(symbol,tf,float(current)); end=min(src.n-1,idx+steps)
+    rs=src.rows(idx+1,end+1)
+    shown=[]
     for b in rs:
         hit_tp=(side=='LONG' and b['high']>=tp) or (side=='SHORT' and b['low']<=tp)
         hit_sl=(side=='LONG' and b['low']<=sl) or (side=='SHORT' and b['high']>=sl)
-        if side and (hit_tp or hit_sl):
-            result='LOSS' if hit_sl else 'WIN'; exit_price=sl if hit_sl else tp; shown.append(b); break
         shown.append(b)
-    if not shown: return {'bars':[],'new_current':current,'result':None}
-    new_current=shown[-1]['_ts']; display=view(symbol,tf,new_current,max(1,steps+1))
-    return {'bars':display,'new_current':new_current,'result':result,'exit':exit_price} if result else {'bars':display,'new_current':new_current,'result':None}
+        if side and (hit_tp or hit_sl):
+            if hit_sl: return {'bars':shown,'new_current':b['_ts'],'result':'LOSS','exit':sl}
+            return {'bars':shown,'new_current':b['_ts'],'result':'WIN','exit':tp}
+    return {'bars':shown,'new_current':shown[-1]['_ts'] if shown else current,'result':None}
